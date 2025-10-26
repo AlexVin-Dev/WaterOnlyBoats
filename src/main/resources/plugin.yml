@@ -1,0 +1,12 @@
+name: boatplugin
+version: '1.0-SNAPSHOT'
+main: ru.aspirez.boatplugin.Boatplugin
+api-version: '1.21'
+commands:
+  boatrestrictor:
+    description: Reload plugin configuration
+    usage: /<command>
+permissions:
+  boatrestrictor.reload:
+    description: Allow to reload configuration
+    default: op
