@@ -1,6 +1,7 @@
 package ru.aspirez.boatplugin;
 
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -43,6 +44,17 @@ public class Boatplugin extends JavaPlugin implements Listener {
         // Логируем загруженные настройки
         getLogger().info("Загружено ограниченных миров: " + restrictedWorlds.size());
         getLogger().info("Загружено ограниченных лодок: " + restrictedBoats.size());
+
+
+        // Чтение и логирование настроек звука
+        boolean playErrorSound = getConfig().getBoolean("play-error-sound", true);
+        String soundName = getConfig().getString("sound", "BLOCK_ANVIL_LAND");
+
+
+        getLogger().info("Воспроизведение звука ошибки: " + (playErrorSound ? "включено" : "выключено"));
+        if (playErrorSound) {
+            getLogger().info("Звук при ошибке: " + soundName);
+        }
     }
 
     @EventHandler
@@ -75,7 +87,15 @@ public class Boatplugin extends JavaPlugin implements Listener {
             player.sendMessage(getConfig().getString("deny-message", "§cЗдесь нельзя ставить лодки!"));
 
             // Опционально: воспроизвести звук ошибки
-            // player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 1.0f);
+            if (getConfig().getBoolean("play-error-sound", true)) {
+                String soundName = getConfig().getString("sound", "BLOCK_ANVIL_LAND");
+                try {
+                    player.playSound(player.getLocation(), Sound.valueOf(soundName), 1.0f, 1.0f);
+                } catch (IllegalArgumentException ex) {
+                    getLogger().warning("Неверное имя звука в конфиге: " + soundName + " — звук не будет воспроизведён.");
+                }
+
+            }
         }
     }
 }

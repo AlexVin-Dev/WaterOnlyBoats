@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'ru.aspirez'
-version = '1.0-SNAPSHOT'
+version = '071225'
 
 repositories {
     mavenCentral()
