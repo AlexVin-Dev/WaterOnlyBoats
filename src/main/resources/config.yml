@@ -2,6 +2,8 @@
 restricted-worlds:
   - world
   - hub
+# Язык сообщения ru/eu
+lang: ru
 
 # Типы лодок, которые нельзя ставить не на воде
 # Полный список всех предметов-лодок в Minecraft 1.21.10
@@ -29,8 +31,7 @@ restricted-boats:
   - bamboo_chest_raft
   - pale_oak_chest_boat # Добавлен в обновлении 1.21.4[citation:3]
 
-# Сообщение при попытке поставить лодку не на воде
-deny-message: "§cЗдесь можно ставить лодки только на воду!"
+
 # Воспроизвести звук ошибки
 play-error-sound: true
 # Указать звук ошибки (Когда включено play-error-sound) - По умолчанию:

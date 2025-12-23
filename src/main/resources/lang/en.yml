@@ -1,0 +1,3 @@
+deny-message: "§cYou can't place boats here!"
+reload-message: "§aBoatRestrictor configuration reloaded!"
+no-permission: "§cYou don't have permission for this command!"

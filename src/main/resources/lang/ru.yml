@@ -1,0 +1,3 @@
+deny-message: "§cЗдесь нельзя ставить лодки!"
+reload-message: "§aКонфигурация BoatRestrictor перезагружена!"
+no-permission: "§cУ вас нет прав на эту команду!"
