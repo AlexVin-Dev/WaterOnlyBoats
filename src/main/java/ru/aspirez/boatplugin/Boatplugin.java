@@ -15,111 +15,190 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-public class Boatplugin extends JavaPlugin implements Listener {
+public class BoatPlugin extends JavaPlugin implements Listener {
 
-    private List<String> restrictedWorlds;
-    private List<String> restrictedBoats;
-    private FileConfiguration langConfig;
+    private static final String PERMISSION_RELOAD = "boatrestrictor.reload";
+    private static final String CONFIG_PLAY_ERROR_SOUND = "play-error-sound";
+    private static final String CONFIG_ERROR_SOUND = "error-sound";
+    private static final String DEFAULT_LANGUAGE = "ru";
+    private static final Sound DEFAULT_ERROR_SOUND = Sound.BLOCK_ANVIL_LAND;
+
+    private final Set<String> restrictedWorlds = new HashSet<>();
+    private final Set<String> restrictedBoats = new HashSet<>();
+    private FileConfiguration languageConfig;
+    private Sound errorSound;
+    private boolean playErrorSound;
 
     @Override
     public void onEnable() {
+        setupConfigs();
+        registerEvents();
+        setupCommand();
+        logPluginInfo();
+    }
+
+    private void setupConfigs() {
         saveDefaultConfig();
-        loadConfig();
-        loadLanguage();
+        loadPluginConfig();
+        loadLanguageConfig();
+    }
 
-        getServer().getPluginManager().registerEvents(this, this);
+    private void loadPluginConfig() {
+        FileConfiguration config = getConfig();
 
-        // Команда для перезагрузки
-        getCommand("boatrestrictor").setExecutor((sender, command, label, args) -> {
-            if (sender.hasPermission("boatrestrictor.reload")) {
-                reloadConfig();
-                loadConfig();
-                loadLanguage();
-                sender.sendMessage(lang("reload-message"));
+        // Загрузка списков
+        restrictedWorlds.clear();
+        restrictedWorlds.addAll(config.getStringList("restricted-worlds"));
+
+        restrictedBoats.clear();
+        config.getStringList("restricted-boats").stream()
+                .map(String::toLowerCase)
+                .forEach(restrictedBoats::add);
+
+        // Загрузка настроек звука
+        playErrorSound = config.getBoolean(CONFIG_PLAY_ERROR_SOUND, true);
+        errorSound = parseSound(config.getString(CONFIG_ERROR_SOUND, DEFAULT_ERROR_SOUND.name()));
+    }
+
+    private void loadLanguageConfig() {
+        String language = getConfig().getString("lang", DEFAULT_LANGUAGE).toLowerCase(Locale.ENGLISH);
+        File languageDir = new File(getDataFolder(), "lang");
+
+        if (!languageDir.exists() && !languageDir.mkdirs()) {
+            getLogger().warning("Не удалось создать директорию для языковых файлов!");
+            return;
+        }
+
+        File languageFile = new File(languageDir, language + ".yml");
+
+        // Если файл языка не существует, создаем из ресурсов
+        if (!languageFile.exists()) {
+            String resourcePath = "lang/" + language + ".yml";
+            if (getResource(resourcePath) != null) {
+                saveResource(resourcePath, false);
             } else {
-                sender.sendMessage(lang("no-permission"));
+                // Используем язык по умолчанию
+                saveResource("lang/" + DEFAULT_LANGUAGE + ".yml", false);
+                languageFile = new File(languageDir, DEFAULT_LANGUAGE + ".yml");
+                getLogger().warning("Языковой файл '" + language + ".yml' не найден. Используется язык по умолчанию.");
+            }
+        }
+
+        languageConfig = YamlConfiguration.loadConfiguration(languageFile);
+    }
+
+    private Sound parseSound(String soundName) {
+        try {
+            return Sound.valueOf(soundName.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            getLogger().warning("Звук '" + soundName + "' не найден. Используется звук по умолчанию.");
+            return DEFAULT_ERROR_SOUND;
+        }
+    }
+
+    private void registerEvents() {
+        getServer().getPluginManager().registerEvents(this, this);
+    }
+
+    private void setupCommand() {
+        getCommand("boatrestrictor").setExecutor((sender, command, label, args) -> {
+            if (sender.hasPermission(PERMISSION_RELOAD)) {
+                reloadPlugin();
+                sender.sendMessage(getLocalizedMessage("reload-message"));
+            } else {
+                sender.sendMessage(getLocalizedMessage("no-permission"));
             }
             return true;
         });
     }
 
-    private void loadConfig() {
-        restrictedWorlds = getConfig().getStringList("restricted-worlds");
-        restrictedBoats = getConfig().getStringList("restricted-boats");
-
-        // Логируем загруженные настройки
-        getLogger().info("Загружено ограниченных миров: " + restrictedWorlds.size());
-        getLogger().info("Загружено ограниченных лодок: " + restrictedBoats.size());
-
-        boolean playErrorSound = getConfig().getBoolean("play-error-sound", true);
-        String soundName = getConfig().getString("error-sound", "BLOCK_ANVIL_LAND");
-
-        getLogger().info("Воспроизведение звука ошибки: " + (playErrorSound ? "включено" : "выключено"));
-        if (playErrorSound) {
-            getLogger().info("Звук при ошибке: " + soundName);
-        }
+    private void reloadPlugin() {
+        reloadConfig();
+        loadPluginConfig();
+        loadLanguageConfig();
+        getLogger().info("Конфигурация перезагружена.");
     }
 
-    private void loadLanguage() {
-        String lang = getConfig().getString("lang", "ru").toLowerCase(Locale.ENGLISH);
-        File langDir = new File(getDataFolder(), "lang");
-        if (!langDir.exists()) {
-            langDir.mkdirs();
-        }
-
-        File langFile = new File(langDir, lang + ".yml");
-        if (!langFile.exists()) {
-            // Пытаемся скопировать ru.yml по умолчанию
-            saveResource("lang/ru.yml", false);
-            // Если нужный файл не найден — создаём его как копию ru
-            if (!langFile.exists()) {
-                getLogger().warning("Язык " + lang + " не найден. Создаю ru.yml по умолчанию.");
-                saveResource("lang/" + lang + ".yml", true);
-            }
-        }
-
-        // Загружаем файл языка
-        langConfig = YamlConfiguration.loadConfiguration(langFile);
-    }
-
-    private String lang(String key) {
-        if (langConfig == null) return "§c[Lang error]";
-        return langConfig.getString(key, "§c[Missing lang: " + key + "]");
+    private void logPluginInfo() {
+        Logger logger = getLogger();
+        logger.info("Плагин BoatRestrictor успешно запущен!");
+        logger.info("Ограниченных миров: " + restrictedWorlds.size());
+        logger.info("Ограниченных лодок: " + restrictedBoats.size());
+        logger.info("Воспроизведение звука ошибки: " + (playErrorSound ? "включено" : "выключено"));
     }
 
     @EventHandler
-    public void onBoatPlace(PlayerInteractEvent e) {
-        if (e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-
-        Player player = e.getPlayer();
-        ItemStack item = e.getItem();
-        if (item == null) return;
-
-        String itemType = item.getType().name().toLowerCase();
-        boolean isRestrictedBoat = restrictedBoats.stream()
-                .anyMatch(boat -> boat.equalsIgnoreCase(itemType));
-        if (!isRestrictedBoat) return;
-
-        if (!restrictedWorlds.contains(player.getWorld().getName())) return;
-
-        Block clickedBlock = e.getClickedBlock();
-        if (clickedBlock == null) return;
-
-        if (clickedBlock.getType() != Material.WATER) {
-            e.setCancelled(true);
-            player.sendMessage(lang("deny-message"));
-
-            if (getConfig().getBoolean("play-error-sound", true)) {
-                String soundName = getConfig().getString("error-sound", "BLOCK_ANVIL_LAND");
-                try {
-                    player.playSound(player.getLocation(), Sound.valueOf(soundName), 1.0f, 1.0f);
-                } catch (IllegalArgumentException ex) {
-                    getLogger().warning("Неверное имя звука в конфиге: " + soundName + " — звук не будет воспроизведён.");
-                }
-            }
+    public void onBoatPlace(PlayerInteractEvent event) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+            return;
         }
+
+        ItemStack item = event.getItem();
+        if (item == null || !isRestrictedBoat(item)) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+        if (!isWorldRestricted(player.getWorld().getName())) {
+            return;
+        }
+
+        Block clickedBlock = event.getClickedBlock();
+        if (clickedBlock == null || clickedBlock.getType() == Material.WATER) {
+            return;
+        }
+
+        event.setCancelled(true);
+        handleRestrictedPlacement(player);
+    }
+
+    private boolean isRestrictedBoat(ItemStack item) {
+        String itemType = item.getType().name().toLowerCase();
+        return restrictedBoats.contains(itemType);
+    }
+
+    private boolean isWorldRestricted(String worldName) {
+        return restrictedWorlds.contains(worldName);
+    }
+
+    private void handleRestrictedPlacement(Player player) {
+        player.sendMessage(getLocalizedMessage("deny-message"));
+
+        if (playErrorSound && errorSound != null) {
+            player.playSound(player.getLocation(), errorSound, 1.0f, 1.0f);
+        }
+    }
+
+    private String getLocalizedMessage(String key) {
+        if (languageConfig == null) {
+            return "§c[Ошибка загрузки языка]";
+        }
+
+        String message = languageConfig.getString(key);
+        return message != null ? message : "§c[Сообщение не найдено: " + key + "]";
+    }
+
+    // Геттеры для тестирования
+    Set<String> getRestrictedWorlds() {
+        return Collections.unmodifiableSet(restrictedWorlds);
+    }
+
+    Set<String> getRestrictedBoats() {
+        return Collections.unmodifiableSet(restrictedBoats);
+    }
+
+    Sound getErrorSound() {
+        return errorSound;
+    }
+
+    boolean isPlayErrorSound() {
+        return playErrorSound;
     }
 }

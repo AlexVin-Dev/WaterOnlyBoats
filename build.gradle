@@ -3,8 +3,14 @@ plugins {
     id("xyz.jpenilla.run-paper") version "2.3.1"
 }
 
+// Настройка Java
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+// Основные настройки проекта
 group = 'ru.aspirez'
-version = '071225'
+version = '1.5.0'
 
 repositories {
     mavenCentral()
@@ -12,48 +18,32 @@ repositories {
         name = "spigotmc-repo"
         url = "https://hub.spigotmc.org/nexus/content/repositories/snapshots/"
     }
-    maven {
-        name = "sonatype"
-        url = "https://oss.sonatype.org/content/groups/public/"
-    }
 }
 
 dependencies {
     compileOnly("org.spigotmc:spigot-api:1.21.4-R0.1-SNAPSHOT")
 }
 
-tasks {
-  runServer {
-    // Configure the Minecraft version for our task.
-    // This is the only required configuration besides applying the plugin.
-    // Your plugin's jar (or shadowJar if present) will be used automatically.
+// Запуск сервера Minecraft через run-paper
+tasks.runServer {
     minecraftVersion("1.21")
-  }
 }
 
-def targetJavaVersion = 21
-java {
-    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
-    sourceCompatibility = javaVersion
-    targetCompatibility = javaVersion
-    if (JavaVersion.current() < javaVersion) {
-        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
-    }
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-
-    if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
-        options.release.set(targetJavaVersion)
-    }
-}
-
+// Обработка ресурсов (например, подстановка версии в plugin.yml)
 processResources {
-    def props = [version: version]
-    inputs.properties props
     filteringCharset 'UTF-8'
     filesMatching('plugin.yml') {
-        expand props
+        expand version: version
+    }
+}
+
+// Логирование размера JAR после сборки
+tasks.jar.finalizedBy('logJarSize')
+
+task logJarSize() {
+    doLast {
+        def jarFile = tasks.jar.archiveFile.get().asFile
+        def sizeKb = (jarFile.length() / 1024).round(2)
+        logger.quiet "📦 JAR собран: ${jarFile.name} | Размер: ~${sizeKb} КБ"
     }
 }
